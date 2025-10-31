@@ -5,6 +5,8 @@ sys.path.insert(0, '..')
 import Elastic.plate_fem as pt
 import Fluid.F3D_1D as F3D
 import numpy as np
+from scipy.sparse.linalg import spsolve
+import tqdm
 # 2-Basic objects, shared by all classes for geometry, material and fluid
 length = 800e-6  # length of beam in m
 width = 100e-6  # width in m
@@ -33,10 +35,10 @@ vfi = F3D.F3D()
 vfi.fluid = fluid
 vfi.fem = plate
 vfi.geometry = geometry
-vfi.setup_quadrature(n_x_fluid, n_y_fluid, 'Mid-point', 'Chebyshev-Gauss')
+vfi.setup_quadrature(n_x_fluid, n_y_fluid, True, True)
 # 5-Solve the VFSI problem in the frequency domain
 frequency = np.linspace(1e3, 500e3, 1000)
-for ff in range(len(frequency)):
+for ff in tqdm.tqdm(range(len(frequency))):
     omega = 2*np.pi*frequency[ff]
     P = vfi.get_p_matrix(omega)
-    phi = np.linalg.solve(K + 1j*omega*P - omega**2*M, F)
+    phi = spsolve(K + 1j*omega*P - omega**2*M, F)

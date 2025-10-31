@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 import fenics as fe
 import numpy as np
+import cupy as cp
 import copy
 import matplotlib.pyplot as plt
 import sys
 import os
 from ufl import indices as ufl_indices
-import scipy.sparse as sps
+#import scipy.sparse as sps
+import cupyx.scipy.sparse as sps
 #import General.Setup as Stp
 
 
@@ -199,8 +201,6 @@ class Kirchhoff(object):
         self.ds_moment = None
         self.ds_shear_force = None
         self.l_vec = 0
-        self.type_ = 'cantilever' # or bridge
-
 
     def preliminary_setup(self):
         """
@@ -228,6 +228,7 @@ class Kirchhoff(object):
             already defined in the class instance, and that they provide the necessary 
             properties such as material type, stiffness coefficients, and geometric dimensions.
         """
+    
         self.indices_ = ufl_indices(4)
         self.alpha, self.beta, self.gamma, self.delta = self.indices_
         self.t_c, self.w_c, self.l_c = self.geometry.t_c, self.geometry.w_c, self.geometry.l_c
@@ -265,10 +266,7 @@ class Kirchhoff(object):
         self.meshing()
         #print('\n Setup Mesh %d x %d.' % (self.n_x, self.n_y))
         self.function_spaces()
-        if self.type_ == 'cantilever':
-            self.set_bcs()
-        elif self.type_ == 'bridge':
-            self.set_bcs_bridge()
+        self.set_bcs()
 
     def meshing(self, nx=None, ny=None, type_=None):
         """
@@ -339,60 +337,8 @@ class Kirchhoff(object):
         # Define the Clamped Boundary conditions
         class BoundaryX0(fe.SubDomain):
             def inside(self, x, on_boundary):
-                return on_boundary and fe.near(x[0], 0, tol)
-        geometry = self.geometry
-        # Define the Free End Boundary conditions
-        class BoundaryX1(fe.SubDomain):
-            def inside(self, x, on_boundary):
-                return on_boundary and (fe.near(x[0], geometry.l_c, tol) or 
-                                        fe.near(x[1], -geometry.w_c/2, tol) or fe.near(x[1], geometry.w_c/2, tol))
-        #
-        boundary_markers = fe.MeshFunction('size_t', self.mesh, self.mesh.topology().dim() - 1)
-        boundary_markers.set_all(0)
-        bx0 = BoundaryX0()
-        bx1 = BoundaryX1()
-        bx0.mark(boundary_markers, 1)
-        bx1.mark(boundary_markers, 2)
-        ds = fe.Measure('ds', domain=self.mesh, subdomain_data=boundary_markers)
-        self.ds_h = ds(1)
-        self.ds_moment = ds(2)
-        self.ds_shear_force = ds(2)
-
-        def left(x, on_boundary):
-            return on_boundary and fe.near(x[0], 0, tol)
-
-        self.dirichlet_bc = fe.DirichletBC(self.VCG, fe.Constant(0), left)
-
-    def set_bcs_bridge(self):
-        """
-        Parameters
-        ----------
-        mesh : fenics.Mesh
-            The mesh of the plate.
-        l_c : float
-            Length of the cantilever in meters.
-        w_c : float
-            Width of the cantilever in meters.
-
-        Returns
-        -------
-        dim = mesh.topology().dim() - 1
-        boundary_markers = fe.MeshFunction('size_t', mesh, dim)
-            Measure for the clamped boundary condition.
-        ds_moment : fenics.Measure
-            Measure for the free end boundary condition (moment).
-        ds_shear_force : fenics.Measure
-            Measure for the free end boundary condition (shear force).
-
-        This method sets up the boundary markers for the clamped and free end boundary conditions
-        and returns the corresponding measures for use in defining boundary conditions in the FEM problem.
-        """
-        tol = 1e-14
-        geometry = self.geometry
-        # Define the Clamped Boundary conditions
-        class BoundaryX0(fe.SubDomain):
-            def inside(self, x, on_boundary):
                 return on_boundary and (fe.near(x[0], 0, tol) or fe.near(x[0], geometry.l_c, tol))
+        geometry = self.geometry
         # Define the Free End Boundary conditions
         class BoundaryX1(fe.SubDomain):
             def inside(self, x, on_boundary):
@@ -409,10 +355,10 @@ class Kirchhoff(object):
         self.ds_moment = ds(2)
         self.ds_shear_force = ds(2)
 
-        def both(x, on_boundary):
-            return on_boundary and (fe.near(x[0], 0, tol) or fe.near(x[0], geometry.l_c, tol))
+        def left(x, on_boundary):
+            return on_boundary and fe.near(x[0], 0, tol)
 
-        self.dirichlet_bc = fe.DirichletBC(self.VCG, fe.Constant(0), both)
+        self.dirichlet_bc = fe.DirichletBC(self.VCG, fe.Constant(0), left)
 
 
     def solve_n_eigenvalues(self, n_eig=6, k=None, m=None):
@@ -504,9 +450,7 @@ class Kirchhoff(object):
         Returns:
             tuple: A tuple containing the stiffness matrix (k_matrix) and the mass matrix (m_matrix).
         """
-        #if self.type_ == 'cantilever':
         self.preliminary_setup()
-        #else: pass
         k_kl = fe.inner(fe.grad(fe.grad(self.u))[(self.alpha, self.beta)],
                 fe.as_tensor(self.c_tensor_fe[(self.alpha, self.beta, self.gamma, self.delta)] *
                          fe.grad(fe.grad(self.v))[(self.gamma, self.delta)])) * fe.dx
@@ -549,13 +493,7 @@ class Kirchhoff(object):
         fe.assemble(m_kl, tensor=m_matrix)
         self.m_matrix = fe.as_backend_type(m_matrix)
         self.k_matrix = fe.as_backend_type(k_matrix)
-
-        row, col, val = fe.as_backend_type(self.m_matrix.mat().getValuesCSR())
-        M_csr = sps.csr_matrix((val, col, row), dtype=complex)
-
-        row, col, val = fe.as_backend_type(self.k_matrix.mat().getValuesCSR())
-        K_csr = sps.csr_matrix((val, col, row), dtype=complex)
-        return K_csr, M_csr
+        return self.k_matrix, self.m_matrix
 
     def added_mass_matrix(self,kappa=1):
         """Calculate an added mass matrix referring to a uniform density kappa """
@@ -620,10 +558,7 @@ class Kirchhoff(object):
         complex
             The value of the complex function `phi` at the point (x_p, y_p).
         """
-        if x_p is None and self.geometry == 'cantilever':
-            x_p = self.geometry.l_c
-            y_p = self.geometry.w_c/2
-        elif x_p is None and self.geometry == 'bridge':
+        if x_p is None:
             x_p = self.geometry.l_c/2
             y_p = self.geometry.w_c/2
         phi_real = fe.Function(self.VCG)
@@ -764,6 +699,5 @@ class Kirchhoff(object):
             xp = [l_c]
             xn = []
         return xp, xn, yp, yn
-
 
 
