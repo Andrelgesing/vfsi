@@ -653,23 +653,23 @@ class Kirchhoff(object):
             The calculated quality factor.
         """
         #W_entry = np.pi*(np.real(1j*self.get_point_value(phi, self.geometry.l_c, -self.geometry.w_c/2)))
-        i, j, k, l = ufl_indices(4)
+        i, j, k, l = self.indices(4)
         phi_r = fe.Function(self.VCG)
         phi_r.vector()[:] = np.array(np.real(phi))
         phi_i = fe.Function(self.VCG)
         phi_i.vector()[:] = np.array(np.imag(phi))
         W1 =  fe.assemble(fe.grad(fe.grad(phi_r))[(i, j)]*
-        fe.as_tensor(self.c_tensor[(i, j, k, l)] * fe.grad(fe.grad(phi_r))[(k, l)]) * fe.dx)
+        fe.as_tensor(self.c_tensor_fe[(i, j, k, l)] * fe.grad(fe.grad(phi_r))[(k, l)]) * fe.dx)
 
         W2 =  fe.assemble(fe.grad(fe.grad(phi_r))[(i, j)]*
-                        fe.as_tensor(self.c_tensor[(i, j, k, l)] * fe.grad(fe.grad(phi_i))[(k, l)]) * fe.dx)
+                        fe.as_tensor(self.c_tensor_fe[(i, j, k, l)] * fe.grad(fe.grad(phi_i))[(k, l)]) * fe.dx)
 
         W3 =  fe.assemble(fe.grad(fe.grad(phi_i))[(i, j)]*
-                        fe.as_tensor(self.c_tensor[(i, j, k, l)] * fe.grad(fe.grad(phi_r))[(k, l)]) * fe.dx)
+                        fe.as_tensor(self.c_tensor_fe[(i, j, k, l)] * fe.grad(fe.grad(phi_r))[(k, l)]) * fe.dx)
 
 
         W4 =  fe.assemble(fe.grad(fe.grad(phi_i))[(i, j)]*
-                        fe.as_tensor(self.c_tensor[(i, j, k, l)] * fe.grad(fe.grad(phi_i))[(k, l)]) * fe.dx)
+                        fe.as_tensor(self.c_tensor_fe[(i, j, k, l)] * fe.grad(fe.grad(phi_i))[(k, l)]) * fe.dx)
 
         tt = np.linspace(0, np.pi/omega, 400)
         Wb_tt = W1*np.cos(omega*tt)*np.cos(omega*tt)

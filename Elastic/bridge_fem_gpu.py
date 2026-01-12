@@ -356,7 +356,7 @@ class Kirchhoff(object):
         self.ds_shear_force = ds(2)
 
         def left(x, on_boundary):
-            return on_boundary and fe.near(x[0], 0, tol)
+            return on_boundary and (fe.near(x[0], 0, tol) or fe.near(x[0], geometry.l_c, tol))
 
         self.dirichlet_bc = fe.DirichletBC(self.VCG, fe.Constant(0), left)
 
