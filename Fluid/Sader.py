@@ -5,7 +5,7 @@ import scipy.signal
 import scipy.optimize
 import scipy.special
 import math
-import Plate.plate_fem as pt
+import Elastic.plate_fem as pt
 from Fluid import F2D
 
 def gamma_function(reynolds):

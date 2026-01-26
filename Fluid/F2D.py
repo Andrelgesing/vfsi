@@ -58,6 +58,7 @@ class F2D(object):
         # Initialize parameters
         self.fluid = Fluid()
         self.fem = pt.Kirchhoff()
+        #self.fem = pt.InteriorPenalty()
         self.geometry = self.fem.geometry
         self.n_x_fluid = 16
         self.n_y_fluid = 64
