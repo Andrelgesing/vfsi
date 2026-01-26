@@ -42,6 +42,8 @@ class Geometry(object):
         self.w_c = w_c  # Width of the plate [m]
         self.t_c = t_c  # Thickness of the plate [m]
         self.a_r = self.l_c / self.w_c  # Aspect ratio of the plate [-]
+        self.i_c = self.t_c ** 3 / 12  # Inertial moment
+        self.k_c = self.w_c*self.t_c ** 3 / 12  # Inertial moment [Only applicable for Green's method]
         #self.k_c = self.w_c*self.t_c ** 3 / 12  # Inertial moment [Only applicable for Green's method]
 
 class Material(object):
@@ -620,10 +622,10 @@ class Kirchhoff(object):
         complex
             The value of the complex function `phi` at the point (x_p, y_p).
         """
-        if x_p is None and self.geometry == 'cantilever':
+        if x_p is None and self.type_ == 'cantilever':
             x_p = self.geometry.l_c
             y_p = self.geometry.w_c/2
-        elif x_p is None and self.geometry == 'bridge':
+        elif x_p is None and self.type_ == 'bridge':
             x_p = self.geometry.l_c/2
             y_p = self.geometry.w_c/2
         phi_real = fe.Function(self.VCG)
